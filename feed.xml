@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0"><channel><title>T.V.H (gamo) — Research Journal</title><link>https://TVietHung305.github.io/</link><description>Notes on reverse engineering, security research, and systems.</description><language>en-us</language>
-<item><title>Understanding a Parser: From Input to Internal Representation</title><link>https://TVietHung305.github.io/posts/understanding-parsers.html</link><description>A practical framework for tracing untrusted input through a program.</description><pubDate>Thu, 26 Nov 2026 00:00:00 GMT</pubDate></item>
-<item><title>Keeping Better Reverse Engineering Notes</title><link>https://TVietHung305.github.io/posts/re-notes.html</link><description>Turning observations into useful, evidence-backed notes.</description><pubDate>Fri, 20 Nov 2026 00:00:00 GMT</pubDate></item>
-</channel></rss>
