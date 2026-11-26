@@ -1,0 +1,616 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="T.V.H (gamo) — Malware Analysis, Reverse Engineering and Vulnerability Research.">
+  <title>T.V.H (gamo) — Research Notes</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg: #f8f7f4;
+      --surface: #fffefa;
+      --text: #24241f;
+      --muted: #77766e;
+      --line: #e7e4dc;
+      --accent: #8b4938;
+      --accent-light: #f2e8e3;
+      --mono: "DM Mono", monospace;
+      --sans: "DM Sans", sans-serif;
+      --serif: "Playfair Display", serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      line-height: 1.7;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .container {
+      width: min(100% - 48px, 920px);
+      margin: auto;
+    }
+
+    header {
+      border-bottom: 1px solid var(--line);
+      background: rgba(248, 247, 244, .94);
+    }
+
+    .nav {
+      min-height: 76px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .brand {
+      font-family: var(--serif);
+      font-size: 21px;
+      font-weight: 700;
+      letter-spacing: -.5px;
+    }
+
+    .brand span {
+      color: var(--accent);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 26px;
+      list-style: none;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .nav-links a:hover,
+    .text-link:hover {
+      color: var(--accent);
+    }
+
+    .hero {
+      padding: 100px 0 88px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .eyebrow {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      font-family: var(--serif);
+      font-size: clamp(42px, 7vw, 68px);
+      line-height: 1.13;
+      letter-spacing: -2px;
+      max-width: 720px;
+      font-weight: 600;
+    }
+
+    h1 em {
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .hero-description {
+      color: var(--muted);
+      max-width: 560px;
+      margin-top: 25px;
+      font-size: 16px;
+    }
+
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 32px;
+    }
+
+    .tag {
+      border: 1px solid var(--line);
+      padding: 6px 11px;
+      border-radius: 3px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 10px;
+    }
+
+    section {
+      padding: 76px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-heading {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 34px;
+    }
+
+    .section-heading h2 {
+      font-family: var(--serif);
+      font-size: 34px;
+      font-weight: 600;
+      letter-spacing: -.7px;
+    }
+
+    .section-index {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .posts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .post {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      padding: 25px;
+      min-height: 190px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: border-color .2s, transform .2s;
+    }
+
+    .post:hover {
+      border-color: var(--accent);
+      transform: translateY(-3px);
+    }
+
+    .post-category {
+      font-family: var(--mono);
+      text-transform: uppercase;
+      font-size: 10px;
+      letter-spacing: 1.2px;
+      color: var(--accent);
+    }
+
+    .post h3 {
+      font-family: var(--serif);
+      font-size: 22px;
+      line-height: 1.35;
+      font-weight: 600;
+      margin: 13px 0;
+    }
+
+    .post-description {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+
+    .post-link {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+    }
+
+    .about-content {
+      max-width: 680px;
+      color: #55544e;
+      font-size: 15px;
+    }
+
+    .about-content p + p {
+      margin-top: 17px;
+    }
+
+    .achievement {
+      display: flex;
+      align-items: center;
+      gap: 25px;
+      padding: 28px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+    }
+
+    .certificate-logo {
+      width: 90px;
+      height: 90px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+
+    .achievement-info {
+      flex: 1;
+    }
+
+    .achievement-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--accent);
+      letter-spacing: 1.4px;
+      text-transform: uppercase;
+    }
+
+    .achievement h3 {
+      font-family: var(--serif);
+      font-size: 25px;
+      margin: 5px 0;
+    }
+
+    .achievement p {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .score {
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .score strong {
+      display: block;
+      font-family: var(--serif);
+      font-size: 38px;
+      color: var(--accent);
+      line-height: 1.2;
+    }
+
+    .score span {
+      font-family: var(--mono);
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .passed {
+      display: inline-block;
+      margin-top: 9px;
+      padding: 3px 9px;
+      background: #e7efe6;
+      color: #3c6740;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .5px;
+    }
+
+    .contact-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .contact-content p {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .x-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      border: 1px solid var(--line);
+      padding: 11px 17px;
+      font-family: var(--mono);
+      font-size: 12px;
+      transition: all .2s;
+    }
+
+    .x-link:hover {
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    footer {
+      padding: 28px 0;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 10px;
+      display: flex;
+      justify-content: space-between;
+      gap: 15px;
+    }
+
+    @media (max-width: 650px) {
+      .container {
+        width: min(100% - 32px, 920px);
+      }
+
+      .nav {
+        align-items: flex-start;
+        flex-direction: column;
+        padding: 20px 0;
+        gap: 13px;
+      }
+
+      .nav-links {
+        gap: 17px;
+        flex-wrap: wrap;
+      }
+
+      .hero {
+        padding: 70px 0;
+      }
+
+      .posts {
+        grid-template-columns: 1fr;
+      }
+
+      .achievement {
+        align-items: flex-start;
+        flex-wrap: wrap;
+        padding: 20px;
+      }
+
+      .certificate-logo {
+        width: 65px;
+        height: 65px;
+      }
+
+      .score {
+        text-align: left;
+        width: 100%;
+      }
+
+      .contact-content {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      footer {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <div class="container nav">
+      <a class="brand" href="#">T.V.H <span>(gamo)</span></a>
+
+      <nav>
+        <ul class="nav-links">
+          <li><a href="#home">Home</a></li>
+          <li><a href="#posts">Posts</a></li>
+          <li><a href="#about">About</a></li>
+          <li><a href="#achievements">Achievements</a></li>
+          <li><a href="#contact">Contact</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="container">
+
+      <!-- HOME -->
+      <section class="hero" id="home">
+        <div class="eyebrow">Independent Research Notes</div>
+
+        <h1>
+          Exploring the internals of
+          <em>software and security.</em>
+        </h1>
+
+        <p class="hero-description">
+          Notes and research on malware analysis, reverse engineering,
+          vulnerability research, Windows internals and systems security.
+        </p>
+
+        <div class="hero-meta">
+          <span class="tag">Malware Analysis</span>
+          <span class="tag">Reverse Engineering</span>
+          <span class="tag">Vulnerability Research</span>
+          <span class="tag">Windows Internals</span>
+        </div>
+      </section>
+
+      <!-- POSTS -->
+      <section id="posts">
+        <div class="section-heading">
+          <h2>Selected Writing</h2>
+          <span class="section-index">01 / POSTS</span>
+        </div>
+
+        <div class="posts">
+
+          <a class="post"
+             href="https://hackmd.io/@IceK/SyC9PhsDel"
+             target="_blank" rel="noopener noreferrer">
+            <div>
+              <div class="post-category">CTF / Reverse Engineering</div>
+              <h3>DownUnderCTF — Rocky Challenge</h3>
+              <p class="post-description">
+                CTF write-up and technical notes.
+              </p>
+            </div>
+            <span class="post-link">READ ON HACKMD ↗</span>
+          </a>
+
+          <a class="post"
+             href="https://hackmd.io/@IceK/ryY4mGbRyl"
+             target="_blank" rel="noopener noreferrer">
+            <div>
+              <div class="post-category">Reverse Engineering</div>
+              <h3>PlaidCTF REV</h3>
+              <p class="post-description">
+                Reverse engineering challenge notes and analysis.
+              </p>
+            </div>
+            <span class="post-link">READ ON HACKMD ↗</span>
+          </a>
+
+          <a class="post"
+             href="https://hackmd.io/@IceK/UAC"
+             target="_blank" rel="noopener noreferrer">
+            <div>
+              <div class="post-category">Windows Internals</div>
+              <h3>Exploring UAC and Access Tokens</h3>
+              <p class="post-description">
+                Notes on User Account Control and Windows access tokens.
+              </p>
+            </div>
+            <span class="post-link">READ ON HACKMD ↗</span>
+          </a>
+
+          <a class="post"
+             href="https://hackmd.io/@IceK/thepsychologyofmoney"
+             target="_blank" rel="noopener noreferrer">
+            <div>
+              <div class="post-category">Reading Notes</div>
+              <h3>The Psychology of Money</h3>
+              <p class="post-description">
+                Personal notes and reflections on the book.
+              </p>
+            </div>
+            <span class="post-link">READ ON HACKMD ↗</span>
+          </a>
+
+          <a class="post"
+             href="https://hackmd.io/@IceK/ReflectiveDLL"
+             target="_blank" rel="noopener noreferrer">
+            <div>
+              <div class="post-category">Windows / Malware Analysis</div>
+              <h3>Reflective DLL Injection</h3>
+              <p class="post-description">
+                Technical notes on reflective DLL loading.
+              </p>
+            </div>
+            <span class="post-link">READ ON HACKMD ↗</span>
+          </a>
+
+          <a class="post"
+             href="https://hackmd.io/@IceK/MemoryScanner"
+             target="_blank" rel="noopener noreferrer">
+            <div>
+              <div class="post-category">Memory Analysis</div>
+              <h3>Memory Scanner</h3>
+              <p class="post-description">
+                Research notes on memory scanning.
+              </p>
+            </div>
+            <span class="post-link">READ ON HACKMD ↗</span>
+          </a>
+
+          <a class="post"
+             href="https://hackmd.io/@IceK/HylzPKkcT"
+             target="_blank" rel="noopener noreferrer">
+            <div>
+              <div class="post-category">Network Analysis</div>
+              <h3>Packet Analysis</h3>
+              <p class="post-description">
+                Notes on packet and network traffic analysis.
+              </p>
+            </div>
+            <span class="post-link">READ ON HACKMD ↗</span>
+          </a>
+
+        </div>
+      </section>
+
+      <!-- ABOUT -->
+      <section id="about">
+        <div class="section-heading">
+          <h2>About Me</h2>
+          <span class="section-index">02 / PROFILE</span>
+        </div>
+
+        <div class="about-content">
+          <p>
+            I'm T.V.H (gamo), a security researcher focused on malware
+            analysis, reverse engineering and vulnerability research.
+          </p>
+
+          <p>
+            My interests include Windows internals, program analysis,
+            binary instrumentation and understanding vulnerabilities
+            in real-world software.
+          </p>
+
+          <p>
+            This website is a collection of technical notes, experiments,
+            write-ups and things I've learned along the way.
+          </p>
+        </div>
+      </section>
+
+      <!-- ACHIEVEMENTS -->
+      <section id="achievements">
+        <div class="section-heading">
+          <h2>Achievements</h2>
+          <span class="section-index">03 / CREDENTIALS</span>
+        </div>
+
+        <div class="achievement">
+          <img
+            class="certificate-logo"
+            src="https://exams.giac.org/api/v2/certification-logo/GREM"
+            alt="GIAC GREM Certification Logo"
+          >
+
+          <div class="achievement-info">
+            <div class="achievement-label">GIAC Certification</div>
+            <h3>GIAC Reverse Engineering Malware (GREM)</h3>
+          </div>
+
+          <div class="score">
+            <strong>84%</strong>
+          </div>
+        </div>
+      </section>
+
+      <!-- CONTACT -->
+      <section id="contact">
+        <div class="section-heading">
+          <h2>Contact</h2>
+          <span class="section-index">04 / CONNECT</span>
+        </div>
+
+        <div class="contact-content">
+          <p>
+            For research discussions, collaboration and technical exchange.
+          </p>
+
+          <a class="x-link"
+             href="https://x.com/hvtran_"
+             target="_blank"
+             rel="noopener noreferrer">
+            𝕏 &nbsp; @hvtran_
+          </a>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer class="container">
+    <span>© 2026 T.V.H (gamo)</span>
+    <span>Built for learning and research.</span>
+  </footer>
+
+</body>
+</html>
