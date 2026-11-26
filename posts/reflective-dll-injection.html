@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reflective DLL Injection | T.V.H (gamo)</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <nav class="navbar">
+      <a class="logo" href="../index.html">T.V.H (gamo)</a>
+      <div class="nav-links">
+        <a href="../index.html">Home</a>
+        <a href="../posts.html">Posts</a>
+        <a href="../about.html">About</a>
+        <a href="../achievements.html">Achievements</a>
+        <a href="https://x.com/hvtran_" target="_blank" rel="noopener noreferrer">X</a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="container article-container">
+    <a class="back-link" href="../posts.html">← All posts</a>
+
+    <header class="article-header">
+      <p class="post-meta">Windows Internals · PE Format</p>
+      <h1>Reflective DLL Injection</h1>
+      <p class="article-description">
+        Notes on reflective loading and the Windows PE structures
+        involved in loading a DLL from memory.
+      </p>
+    </header>
+
+    <article class="article-content">
+      <h2>Overview</h2>
+
+      <p>
+        Reflective DLL Injection (RDI) is a technique developed by
+        Stephen Fewer. It is closely related to manual mapping, where
+        a PE image is mapped into memory without relying on the
+        ordinary DLL-loading path.
+      </p>
+
+      <p>
+        Under the standard Windows loading model, an application
+        commonly uses <code>LoadLibrary</code> to load a DLL from a
+        file path. Reflective loading changes this model by handling
+        important parts of the image-loading process in memory.
+      </p>
+
+      <p>
+        Understanding the technique requires familiarity with the
+        PE format, process structures, imports and relocations.
+      </p>
+
+      <h2>1. Locating API Addresses</h2>
+
+      <p>
+        Windows processes contain structures that describe loaded
+        modules and their metadata. One relevant structure is the
+        Process Environment Block (PEB), which contains information
+        about the current process.
+      </p>
+
+      <p>
+        The PEB contains a loader-related structure commonly referred
+        to as <code>Ldr</code>. This structure maintains information
+        about modules loaded into the process.
+      </p>
+
+      <p>
+        The Thread Environment Block (TEB) provides access to the
+        PEB. On x86 systems, the relevant TEB access convention uses
+        the FS segment register; on x64 systems, it uses GS.
+      </p>
+
+      <ul>
+        <li>x86: the PEB pointer is commonly found at TEB offset <code>0x30</code>.</li>
+        <li>x64: the PEB pointer is commonly found at TEB offset <code>0x60</code>.</li>
+      </ul>
+
+      <p>
+        The loader's module lists can then be examined to understand
+        which DLLs are present in the process and where their images
+        are mapped.
+      </p>
+
+      <h2>2. Finding Exported Functions</h2>
+
+      <p>
+        Once the base address of a module is known, its exported
+        functions can be examined through the Export Address Table
+        (EAT).
+      </p>
+
+      <p>
+        The PE export information is described by
+        <code>IMAGE_EXPORT_DIRECTORY</code>, which is referenced
+        through the export entry in the PE data directory.
+      </p>
+
+      <p>
+        The export directory contains important arrays, including:
+      </p>
+
+      <ul>
+        <li><code>AddressOfFunctions</code>: function address RVAs.</li>
+        <li><code>AddressOfNames</code>: name RVAs for named exports.</li>
+        <li><code>AddressOfNameOrdinals</code>: ordinal indexes corresponding to names.</li>
+      </ul>
+
+      <p>
+        A PE parser begins with the DOS header, follows the
+        <code>e_lfanew</code> offset to the NT headers, and then
+        examines the optional header and data directories to locate
+        the export information.
+      </p>
+
+      <h2>3. Understanding the PE Image Layout</h2>
+
+      <p>
+        A PE file contains headers and sections. Sections may hold
+        executable code, initialized data, resources or other
+        information.
+      </p>
+
+      <p>
+        The PE headers describe both the file layout and the expected
+        in-memory image layout. These layouts are not identical:
+        raw file offsets and relative virtual addresses (RVAs) have
+        different meanings.
+      </p>
+
+      <h3>Sections</h3>
+
+      <p>
+        The section table is described by
+        <code>IMAGE_SECTION_HEADER</code>. Relevant fields include:
+      </p>
+
+      <ul>
+        <li><code>VirtualAddress</code>: the section's RVA in the image.</li>
+        <li><code>PointerToRawData</code>: the section's file offset.</li>
+        <li><code>SizeOfRawData</code>: the size of the section's data in the file.</li>
+        <li><code>VirtualSize</code>: the section's expected size in memory.</li>
+      </ul>
+
+      <h2>4. Import Address Table</h2>
+
+      <p>
+        The Import Address Table (IAT) contains the addresses of
+        functions imported from other modules. The import directory
+        is represented by an array of
+        <code>IMAGE_IMPORT_DESCRIPTOR</code> structures.
+      </p>
+
+      <p>Three fields are particularly relevant:</p>
+
+      <ul>
+        <li><code>OriginalFirstThunk</code>: points to import lookup information.</li>
+        <li><code>Name</code>: identifies the imported module.</li>
+        <li><code>FirstThunk</code>: identifies the IAT entries.</li>
+      </ul>
+
+      <p>
+        Import entries may identify functions by name or ordinal.
+        The loader resolves these references and updates the IAT
+        with addresses that the image can use at runtime.
+      </p>
+
+      <h2>5. Base Relocations</h2>
+
+      <p>
+        A PE image may not always be mapped at its preferred image
+        base. When the actual base differs from the preferred base,
+        relocation information is needed to adjust absolute
+        addresses embedded in the image.
+      </p>
+
+      <p>
+        The <code>.reloc</code> section contains relocation data.
+        The relocation directory describes blocks of relocation
+        entries. The loader uses the difference between the actual
+        and preferred image bases, often called the relocation
+        delta, to determine how addresses must be adjusted.
+      </p>
+
+      <p>
+        This is why understanding the relocation directory and
+        relocation types is important when studying PE loading.
+      </p>
+
+      <h2>6. Execution and Initialization</h2>
+
+      <p>
+        Mapping an image is not the same as completing all of its
+        initialization. A Windows image has additional runtime
+        expectations, including correct memory protections,
+        resolved imports, relocation handling and initialization
+        routines.
+      </p>
+
+      <p>
+        For reverse engineering, these details are useful when
+        identifying manually mapped modules and understanding why
+        their memory layout may differ from conventionally loaded
+        DLLs.
+      </p>
+
+      <h2>Key Structures</h2>
+
+      <ul>
+        <li><code>PEB</code> — process environment information.</li>
+        <li><code>TEB</code> — thread environment information.</li>
+        <li><code>PEB_LDR_DATA</code> — loader data and module lists.</li>
+        <li><code>IMAGE_DOS_HEADER</code> — DOS header.</li>
+        <li><code>IMAGE_NT_HEADERS</code> — PE signature and headers.</li>
+        <li><code>IMAGE_SECTION_HEADER</code> — section metadata.</li>
+        <li><code>IMAGE_EXPORT_DIRECTORY</code> — exported function metadata.</li>
+        <li><code>IMAGE_IMPORT_DESCRIPTOR</code> — imported module metadata.</li>
+        <li><code>IMAGE_BASE_RELOCATION</code> — relocation block metadata.</li>
+      </ul>
+    </article>
+
+    <nav class="article-pagination">
+      <a href="psychology-of-money.html">← Previous: The Psychology of Money</a>
+      <a href="memory-scanner.html">Next: Memory Scanner →</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <p>© 2026 T.V.H (gamo)</p>
+  </footer>
+</body>
+</html>

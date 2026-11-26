@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PlaidCTF — Prospecting | T.V.H (gamo)</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <nav class="navbar">
+      <a class="logo" href="../index.html">T.V.H (gamo)</a>
+      <div class="nav-links">
+        <a href="../index.html">Home</a>
+        <a href="../posts.html">Posts</a>
+        <a href="../about.html">About</a>
+        <a href="../achievements.html">Achievements</a>
+        <a href="https://x.com/hvtran_" target="_blank" rel="noopener noreferrer">X</a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="container article-container">
+    <a class="back-link" href="../posts.html">← All posts</a>
+
+    <header class="article-header">
+      <p class="post-meta">CTF · Reverse Engineering</p>
+      <h1>PlaidCTF — Prospecting</h1>
+      <p class="article-description">
+        An exploration of a constraint-based flag checker and a
+        genetic algorithm approach.
+      </p>
+    </header>
+
+    <article class="article-content">
+      <h2>Challenge Overview</h2>
+
+      <p>
+        The Prospecting challenge validates a candidate flag by
+        evaluating a large collection of conditions over individual
+        bytes in an input buffer.
+      </p>
+
+      <p>
+        The checks include direct byte comparisons, XOR operations
+        and additions between selected positions. Each condition
+        contributes to a score when it evaluates to true.
+      </p>
+
+      <p>
+        The source script defines a 64-character flag, the
+        <code>PCTF{</code> prefix and a closing brace. The validation
+        function receives the encoded candidate and evaluates the
+        constraints.
+      </p>
+
+      <h2>Constraint Evaluation</h2>
+
+      <p>
+        The conditions have several recurring forms:
+      </p>
+
+      <pre><code>buf[index] == constant
+
+(buf[index_a] ^ buf[index_b]) == constant
+
+(buf[index_a] + buf[index_b]) == constant
+
+buf[index_a] == buf[index_b]</code></pre>
+
+      <p>
+        These expressions can be interpreted as constraints over
+        byte positions. Direct comparisons constrain a byte to a
+        specific value, while XOR and addition expressions relate
+        two positions.
+      </p>
+
+      <p>
+        The original challenge script contains a large number of
+        these predicates. Keep the original <code>prospect()</code>
+        function from the source notes here if you want the full
+        constraint listing available in the published article.
+      </p>
+
+      <h2>Scoring Function</h2>
+
+      <p>
+        The source code uses a callback to count the number of
+        successful conditions. The score is therefore the number
+        of predicates that evaluate to true for a candidate.
+      </p>
+
+      <pre><code>def get_score(buf):
+    global score
+    score = 0
+
+    def fn_chal(condition):
+        global score
+        if condition:
+            score += 1
+
+    prospect(list(buf.encode()), fn_chal)
+    return score</code></pre>
+
+      <h2>Genetic Algorithm</h2>
+
+      <p>
+        Instead of searching every possible 64-character string,
+        the script uses a genetic algorithm. It maintains a
+        population of candidate flags and evolves them over a
+        number of generations.
+      </p>
+
+      <p>The parameters in the original script are:</p>
+
+      <pre><code>FLAG_LEN = 64
+FLAG_PREFIX = "PCTF{"
+FLAG_SUFFIX = "}"
+CHARSET = string.printable.strip()
+
+POP_SIZE = 400
+GENERATIONS = 10000
+MUTATION_RATE = 0.03
+ELITE_COUNT = 100</code></pre>
+
+      <h3>Population initialization</h3>
+
+      <p>
+        The initial population is generated from random printable
+        characters while preserving the required flag prefix and
+        suffix.
+      </p>
+
+      <pre><code>def random_flag():
+    middle_len = FLAG_LEN - len(FLAG_PREFIX) - len(FLAG_SUFFIX)
+    middle = ''.join(random.choices(CHARSET, k=middle_len))
+    return FLAG_PREFIX + middle + FLAG_SUFFIX</code></pre>
+
+      <h3>Mutation</h3>
+
+      <p>
+        Mutation randomly changes characters in the body of a
+        candidate. The prefix and suffix are kept unchanged.
+      </p>
+
+      <pre><code>def mutate(flag):
+    flag = list(flag)
+
+    for i in range(len(flag)):
+        if (
+            random.random() &lt; MUTATION_RATE
+            and i &gt;= len(FLAG_PREFIX)
+            and i &lt; FLAG_LEN - len(FLAG_SUFFIX)
+        ):
+            flag[i] = random.choice(CHARSET)
+
+    return ''.join(flag)</code></pre>
+
+      <h3>Crossover</h3>
+
+      <p>
+        Crossover combines two parent candidates by selecting a
+        split position and taking the prefix from one parent and
+        the remaining part from the other.
+      </p>
+
+      <pre><code>def crossover(parent1, parent2):
+    idx = random.randint(
+        len(FLAG_PREFIX),
+        FLAG_LEN - len(FLAG_SUFFIX) - 1
+    )
+
+    child = parent1[:idx] + parent2[idx:]
+    return child</code></pre>
+
+      <h3>Evolution loop</h3>
+
+      <p>
+        Each generation is scored and sorted. The highest-scoring
+        candidates are retained as elites. New candidates are
+        produced through selection, crossover and mutation.
+      </p>
+
+      <pre><code>population = [random_flag() for _ in range(POP_SIZE)]
+
+for gen in range(GENERATIONS):
+    scored = [
+        (flag, get_score(flag))
+        for flag in population
+    ]
+
+    scored.sort(key=lambda x: x[1], reverse=True)
+    best = scored[0]
+
+    print(f"Generation {gen} | Score: {best[1]}")
+
+    if best[1] >= 281:
+        print(f"Flag: {best[0]}")
+        break
+
+    new_population = [
+        flag for flag, _ in scored[:ELITE_COUNT]
+    ]
+
+    while len(new_population) &lt; POP_SIZE:
+        p1, p2 = random.choices(new_population, k=2)
+        child = mutate(crossover(p1, p2))
+        new_population.append(child)
+
+    population = new_population</code></pre>
+
+      <h2>Notes and Limitations</h2>
+
+      <p>
+        The genetic algorithm is a heuristic search method. A high
+        score indicates that many predicates are satisfied, but it
+        does not automatically prove that the candidate is a valid
+        flag unless the challenge's acceptance condition is also
+        satisfied.
+      </p>
+
+      <p>
+        The source notes record a score threshold of 281. They do
+        not establish a verified final flag or a complete successful
+        solve, so this article does not claim one.
+      </p>
+
+      <h2>Further Analysis</h2>
+
+      <ul>
+        <li>Translate each predicate into a formal constraint.</li>
+        <li>Identify contradictory or duplicated conditions.</li>
+        <li>Compare heuristic search with a constraint solver.</li>
+        <li>Verify a candidate against the original checker before treating it as a solution.</li>
+      </ul>
+    </article>
+
+    <nav class="article-pagination">
+      <a href="downunderctf.html">← Previous: DownUnderCTF</a>
+      <a href="uac-access-token.html">Next: UAC and Access Tokens →</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <p>© 2026 T.V.H (gamo)</p>
+  </footer>
+</body>
+</html>
+</html>
