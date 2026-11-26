@@ -1,140 +1,33 @@
-<!DOCTYPE html>
-<html lang="vi">
+<!doctype html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Heart Animation</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap" rel="stylesheet">
-<style>
-  :root { --bg:#14060c; --rose:#ff4d6d; --blush:#ffb3c1; --text:#ffd9e0; }
-  * { box-sizing: border-box; margin: 0; }
-  html, body { height: 100%; background: var(--bg); overflow: hidden; }
-  body { display: flex; flex-direction: column; align-items: center; justify-content: center; }
-  canvas { width: 100%; height: 72vh; display: block; }
-  #msg {
-    min-height: 1.4em; padding: 0 1rem; text-align: center;
-    font: 600 clamp(1.5rem, 5vw, 2.6rem)/1.3 "Dancing Script", "Segoe Script", cursive;
-    color: var(--text); text-shadow: 0 0 18px rgba(255,77,109,.55);
-  }
-  #msg::after { content: ""; display: inline-block; width: 2px; height: 1em; margin-left: 4px;
-    background: var(--blush); vertical-align: -0.12em; animation: blink 1s steps(1) infinite; }
-  @keyframes blink { 50% { opacity: 0; } }
-  @media (prefers-reduced-motion: reduce) { #msg::after { animation: none; } }
-</style>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Notes on reverse engineering, security research, and systems.">
+  <meta name="theme-color" content="#f7f6f2">
+  <title>H.V. — Research Journal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;500;600&family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
-<canvas id="c" aria-label="Trái tim đang được vẽ"></canvas>
-<p id="msg"></p>
+<header class="topbar"><a class="site-title" href="index.html">H.V.</a><nav><a class="active" href="index.html">Home</a><a href="posts.html">Posts</a><a href="about.html">About</a><a href="achievements.html">Achievements</a></nav><a class="rss" href="feed.xml">RSS ↗</a></header>
+<main class="page">
+  <section class="intro">
+    <p class="kicker">PERSONAL RESEARCH JOURNAL</p>
+    <h1>H.V. <span class="subname">— Notes from the low-level world</span></h1>
+    <p class="motto">Learning how things work, one layer at a time.</p>
+    <div class="bio">
+      <p>Welcome to my corner of the internet. I write about <strong>reverse engineering</strong>, <strong>malware analysis</strong>, and <strong>vulnerability research</strong> — alongside experiments, lessons learned, and occasional notes from life.</p>
+      <p>This site is a living notebook. Some posts are polished writeups; others are simply records of things I do not want to forget.</p>
+    </div>
+    <div class="social"><a href="https://github.com/TVietHung305">GitHub ↗</a><a href="mailto:YOUR_EMAIL@example.com">Email ↗</a><a href="https://www.linkedin.com/">LinkedIn ↗</a></div>
+  </section>
 
-<script>
-// ====== Chỉnh nội dung ở đây ======
-const MESSAGE = "hope you always happiness :D";
-// ==================================
-
-const canvas = document.getElementById("c");
-const ctx = canvas.getContext("2d");
-const msgEl = document.getElementById("msg");
-const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-let W, H, S, dpr;
-function resize() {
-  dpr = window.devicePixelRatio || 1;
-  W = canvas.clientWidth; H = canvas.clientHeight;
-  canvas.width = W * dpr; canvas.height = H * dpr;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  S = Math.min(W / 40, H / 36);
-}
-addEventListener("resize", resize);
-resize();
-
-// Heart curve
-const heart = t => ({
-  x: 16 * Math.pow(Math.sin(t), 3),
-  y: -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t))
-});
-
-const N = 420;
-const outline = Array.from({ length: N + 1 }, (_, i) => heart((i / N) * Math.PI * 2));
-
-// Particles that fill the heart
-const P = Array.from({ length: 1100 }, () => {
-  const h = heart(Math.random() * Math.PI * 2);
-  const k = Math.pow(Math.random(), 0.55);
-  return {
-    tx: h.x * k, ty: h.y * k,
-    x: (Math.random() - 0.5) * 80, y: (Math.random() - 0.5) * 70,
-    delay: Math.random() * 1.6,
-    r: Math.random() * 1.4 + 0.6,
-    a: Math.random() * 0.5 + 0.4,
-    ph: Math.random() * 6.28
-  };
-});
-
-const DRAW = 3.8, FILL = DRAW + 0.2;
-const ease = x => 1 - Math.pow(1 - x, 3);
-let start = null, typed = 0, lastType = 0;
-
-function frame(now) {
-  if (start === null) start = now;
-  let t = (now - start) / 1000;
-  if (reduce) t = 99;
-
-  ctx.clearRect(0, 0, W, H);
-  ctx.save();
-  ctx.translate(W / 2, H / 2 - S * 0.5);
-
-  // heartbeat after everything is drawn
-  const beatT = Math.max(0, t - (FILL + 2));
-  const beat = beatT > 0 ? 1 + 0.045 * Math.pow(Math.max(0, Math.sin(beatT * 3.2)), 6) * 2 : 1;
-  ctx.scale(beat, beat);
-
-  // outline being drawn
-  const p = Math.min(1, t / DRAW);
-  const upto = Math.floor(ease(p) * N);
-  ctx.lineCap = "round"; ctx.lineJoin = "round";
-  ctx.shadowColor = "rgba(255,77,109,.9)"; ctx.shadowBlur = 14;
-  ctx.strokeStyle = t > FILL ? "rgba(255,143,163,.55)" : "#ff8fa3";
-  ctx.lineWidth = Math.max(1.5, S * 0.12);
-  ctx.beginPath();
-  for (let i = 0; i <= upto; i++) {
-    const o = outline[i];
-    i ? ctx.lineTo(o.x * S, o.y * S) : ctx.moveTo(o.x * S, o.y * S);
-  }
-  ctx.stroke();
-
-  // glowing pen tip
-  if (p < 1) {
-    const o = outline[upto];
-    ctx.fillStyle = "#fff";
-    ctx.shadowBlur = 24;
-    ctx.beginPath(); ctx.arc(o.x * S, o.y * S, S * 0.22, 0, 7); ctx.fill();
-  }
-
-  // particles flying into place
-  ctx.shadowBlur = 8;
-  for (const q of P) {
-    const lt = (t - FILL - q.delay) / 1.8;
-    if (lt <= 0) continue;
-    const e = ease(Math.min(1, lt));
-    const tw = 0.75 + 0.25 * Math.sin(t * 2 + q.ph);
-    const x = q.x + (q.tx - q.x) * e, y = q.y + (q.ty - q.y) * e;
-    ctx.fillStyle = `rgba(255,${100 + (q.ph * 20) | 0},${130 + (q.ph * 15) | 0},${q.a * tw * Math.min(1, lt * 2)})`;
-    ctx.beginPath(); ctx.arc(x * S, y * S, q.r * (S / 12 + 0.5), 0, 7); ctx.fill();
-  }
-  ctx.restore();
-
-  // typewriter message
-  if (t > FILL + 1.5 && typed < MESSAGE.length && now - lastType > 90) {
-    typed++; lastType = now;
-    msgEl.textContent = MESSAGE.slice(0, typed);
-  }
-  if (reduce) msgEl.textContent = MESSAGE;
-
-  requestAnimationFrame(frame);
-}
-requestAnimationFrame(frame);
-</script>
-</body>
-</html>
+  <section class="posts-section">
+    <div class="section-head"><h2>Recent posts</h2><a href="posts.html">All posts →</a></div>
+    <article class="post-row"><a class="post-main" href="posts/understanding-parsers.html"><h3>Understanding a Parser: From Input to Internal Representation</h3><p>A practical framework for tracing how untrusted input moves through a program, and where assumptions can break.</p><div class="meta"><time datetime="2026-11-26">November 26, 2026</time><span>research</span><span>reverse engineering</span></div></a></article>
+    <article class="post-row"><a class="post-main" href="posts/re-notes.html"><h3>Keeping Better Reverse Engineering Notes</h3><p>How to turn disassembly observations into evidence-backed notes that remain useful weeks later.</p><div class="meta"><time datetime="2026-11-20">November 20, 2026</time><span>workflow</span><span>notes</span></div></a></article>
+    <article class="post-row"><a class="post-main" href="posts/learning-systems.html"><h3>Learning Systems by Following Boundaries</h3><p>Why interfaces, trust boundaries, and data transformations are useful starting points when studying complex software.</p><div class="meta"><time datetime="2026-11-12">November 12, 2026</time><span>systems</span><span>security</span></div></a></article>
+  </section>
+  <footer><span>© <span id="year"></span> H.V.</span><span>Built with care · Hosted on GitHub Pages</span><a href="#top">Back to top ↑</a></footer>
+</main><script src="assets/js/main.js"></script></body></html>
