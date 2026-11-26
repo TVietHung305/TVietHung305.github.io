@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Memory Scanner | T.V.H (gamo)</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+  <script src="../assets/js/main.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+  <div class="container nav">
+    <a class="brand" href="../index.html">T.V.H <span>(gamo)</span></a>
+    <button class="menu-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+    <nav class="nav-menu">
+      <a href="../index.html">Home</a>
+      <a class="active" href="../posts.html">Posts</a>
+      <a href="../about.html">About</a>
+      <a href="../achievements.html">Achievements</a>
+    </nav>
+  </div>
+</header>
+
+  <main class="container page-main article-container">
+    <a class="back-link" href="../posts.html">← All posts</a>
+
+    <header class="article-header">
+      <p class="post-category">Tool Development · Windows</p>
+      <h1>Memory Scanner</h1>
+      <p class="article-description">
+        Notes on the architecture of a basic Windows process memory scanner.
+      </p>
+    </header>
+
+    <article class="article-content">
+      <h2>Introduction</h2>
+
+      <p>
+        Cheat Engine is a well-known example of a memory scanner.
+        Memory scanners allow users to search for values stored in
+        a process's memory and inspect how those values change.
+      </p>
+
+      <h2>Understanding the Search Process</h2>
+
+      <p>
+        The basic idea is to search a target process for a particular
+        value and record the addresses where that value appears.
+        A later scan can examine only the previously identified
+        addresses, narrowing down the candidate list.
+      </p>
+
+      <p>
+        For example, a 32-bit process has a virtual address space
+        that can be represented by a range of addresses. A scanner
+        can examine readable memory regions and compare DWORD-sized
+        values against a requested value.
+      </p>
+
+      <p>
+        A filtering pass then checks the addresses found in the
+        previous scan. Addresses whose current values no longer
+        match are discarded.
+      </p>
+
+      <h2>Program Structure</h2>
+
+      <p>
+        The scanner can be divided into three logical operations:
+      </p>
+
+      <ul>
+        <li><strong>Search:</strong> identify candidate addresses.</li>
+        <li><strong>Filter:</strong> recheck previously identified addresses.</li>
+        <li><strong>Write:</strong> update a value in an authorized test process.</li>
+      </ul>
+
+      <p>
+        Command-line arguments can select which operation to run.
+        A results file can be used to pass candidate addresses from
+        one scan operation to the next.
+      </p>
+
+      <h2>Process Handle</h2>
+
+      <p>
+        Windows process memory APIs operate on a process handle.
+        A process snapshot can be used to enumerate processes and
+        identify a target process in a controlled test environment.
+      </p>
+
+      <pre><code>#include &lt;windows.h&gt;
+#include &lt;tlhelp32.h&gt;
+#include &lt;stdio.h&gt;
+
+int main(int argc, char** argv) {
+    HANDLE process_snapshot = 0;
+    PROCESSENTRY32 pe32 = { 0 };
+
+    pe32.dwSize = sizeof(PROCESSENTRY32);
+
+    process_snapshot =
+        CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+
+    if (process_snapshot == INVALID_HANDLE_VALUE) {
+        return 1;
+    }
+
+    if (Process32First(process_snapshot, &amp;pe32)) {
+        do {
+            if (wcscmp(pe32.szExeFile, L"test.exe") == 0) {
+                /*
+                 * Open only a process that you own
+                 * or are explicitly authorized to inspect.
+                 */
+
+                HANDLE process = OpenProcess(
+                    PROCESS_QUERY_INFORMATION |
+                    PROCESS_VM_READ,
+                    FALSE,
+                    pe32.th32ProcessID
+                );
+
+                if (process != NULL) {
+                    /* Perform authorized inspection here. */
+
+                    CloseHandle(process);
+                }
+
+                break;
+            }
+        } while (Process32Next(process_snapshot, &amp;pe32));
+    }
+
+    CloseHandle(process_snapshot);
+    return 0;
+}</code></pre>
+
+      <h2>Search Operation</h2>
+
+      <p>
+        The search operation examines readable memory regions and
+        compares values against the requested DWORD. A process
+        does not necessarily have every address in its virtual
+        address space committed or readable, so memory inspection
+        must account for inaccessible regions.
+      </p>
+
+      <p>
+        <code>ReadProcessMemory</code> can read a requested range
+        into a local buffer. Its return value and the number of
+        bytes read should be checked before interpreting the buffer.
+      </p>
+
+      <p>
+        Memory regions can be enumerated with
+        <code>VirtualQueryEx</code>. This provides information about
+        the state and protection of each region, allowing an
+        inspection tool to distinguish readable memory from
+        inaccessible memory.
+      </p>
+
+      <h2>Filtering</h2>
+
+      <p>
+        Filtering uses the candidate addresses from a previous
+        search. The scanner reads the current value at each candidate
+        address and keeps only addresses that still match the
+        requested value.
+      </p>
+
+      <p>
+        A temporary results file can be used to store the filtered
+        list before replacing the previous results. This makes it
+        possible to repeat the filtering operation as the target
+        process changes.
+      </p>
+
+      <h2>Writing</h2>
+
+      <p>
+        The original notes also describe a write operation using
+        <code>WriteProcessMemory</code>. Writing to another process
+        changes its state and should only be performed in a
+        controlled test process that you own or are authorized
+        to modify.
+      </p>
+
+      <p>
+        A robust implementation should validate the target address,
+        requested size, process handle and number of bytes written.
+        It should also make the write operation an explicit action,
+        rather than silently modifying memory during a scan.
+      </p>
+
+      <h2>Important APIs</h2>
+
+      <ul>
+        <li><code>CreateToolhelp32Snapshot</code> — creates a snapshot for process enumeration.</li>
+        <li><code>Process32First</code> and <code>Process32Next</code> — enumerate processes.</li>
+        <li><code>OpenProcess</code> — opens a process with requested access rights.</li>
+        <li><code>VirtualQueryEx</code> — queries information about a process memory region.</li>
+        <li><code>ReadProcessMemory</code> — reads memory from another process.</li>
+        <li><code>WriteProcessMemory</code> — writes memory to another process.</li>
+      </ul>
+
+      <h2>Takeaways</h2>
+
+      <p>
+        The most important part of a memory scanner is not simply
+        iterating through addresses. It is understanding virtual
+        memory regions, process access rights, read failures and
+        how candidate addresses are maintained across multiple scans.
+      </p>
+    </article>
+
+    <nav class="article-pagination">
+      <a href="reflective-dll-injection.html">← Previous: Reflective DLL Injection</a>
+      <a href="packet-analysis.html">Next: Packet Analysis →</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+  <div class="container footer-inner">
+    <span>© 2026 T.V.H (gamo)</span>
+    <a href="https://x.com/hvtran_" target="_blank" rel="noopener noreferrer">X ↗</a>
+  </div>
+</footer>
+</body>
+</html>
