@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exploring UAC and Access Tokens | T.V.H (gamo)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
+  <script src="../assets/js/main.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+  <div class="container nav">
+    <a class="brand" href="../index.html">T.V.H <span>(gamo)</span></a>
+    <button class="menu-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+    <nav class="nav-menu">
+      <a href="../index.html">Home</a>
+      <a class="active" href="../posts.html">Posts</a>
+      <a href="../about.html">About</a>
+      <a href="../achievements.html">Achievements</a>
+    </nav>
+  </div>
+</header>
+
+  <main class="container page-main article-container">
+    <a class="back-link" href="../posts.html">← All posts</a>
+
+    <header class="article-header">
+      <p class="post-category">Windows Internals · Security</p>
+      <h1>Exploring UAC and Access Tokens</h1>
+      <p class="article-description">
+        Notes on Windows User Account Control and access token concepts.
+      </p>
+    </header>
+
+    <article class="article-content">
+      <h2>UAC (User Account Control)</h2>
+
+      <p>
+        User Account Control (UAC) is a Windows security feature that
+        prompts users for consent when an operation requires elevated
+        privileges. When UAC is enabled, applications normally run
+        with a standard user security context unless elevation is
+        explicitly approved.
+      </p>
+
+      <p>
+        An administrator account can have two access tokens:
+        a filtered standard token for everyday activities and an
+        elevated token containing administrative privileges.
+      </p>
+
+      <h2>UAC configuration</h2>
+
+      <p>
+        One registry value used to check whether UAC is enabled is:
+      </p>
+
+      <pre data-lang="Registry"><code class="language-plaintext">HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Policies\System
+EnableLUA = 1</code></pre>
+
+      <p>
+        A value of <code>1</code> indicates that UAC is enabled.
+        A value of <code>0</code> indicates that it is disabled.
+      </p>
+
+      <p>
+        Another relevant setting is
+        <code>ConsentPromptBehaviorAdmin</code>:
+      </p>
+
+      <pre data-lang="Registry"><code class="language-plaintext">HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Policies\System
+ConsentPromptBehaviorAdmin = 5</code></pre>
+
+      <ul>
+        <li><strong>0:</strong> Do not prompt for elevation.</li>
+        <li><strong>1:</strong> Prompt for credentials on the secure desktop.</li>
+        <li><strong>2:</strong> Always notify when an administrator requests elevation.</li>
+        <li><strong>3:</strong> Similar to option 1, without using the secure desktop.</li>
+        <li><strong>4:</strong> Similar to option 2, without using the secure desktop.</li>
+        <li><strong>5:</strong> Default behavior: prompt for consent when a non-Windows binary requests elevation.</li>
+      </ul>
+
+      <h2>Other registry values</h2>
+
+      <p>
+        <code>LocalAccountTokenFilterPolicy</code> affects remote
+        token filtering for local accounts. Its behavior should be
+        considered in the context of remote administration and the
+        account being used.
+      </p>
+
+      <p>
+        <code>FilterAdministratorToken</code> controls whether the
+        built-in Administrator account receives a filtered token
+        when logging on locally.
+      </p>
+
+      <h2>Access Tokens</h2>
+
+      <p>
+        When a user logs in to Windows, the operating system creates
+        an access token representing that logon session. The token
+        contains information such as the user's identity, group
+        memberships and privileges. It also includes a logon SID
+        that identifies the current logon session.
+      </p>
+
+      <p>Consider a simplified example:</p>
+
+      <ol>
+        <li>A user enters a username and password to log in.</li>
+        <li>Windows authenticates the credentials.</li>
+        <li>The system creates an access token containing the user's SID, groups and privileges.</li>
+        <li>When the user starts an application such as Excel, the process receives a primary token representing its security context.</li>
+        <li>Windows uses that context when checking whether the process can access a file or perform an operation.</li>
+      </ol>
+
+      <h2>Types of Access Tokens</h2>
+
+      <h3>Primary Token</h3>
+
+      <p>
+        A primary token represents the security context of a process.
+        It is associated with the identity, groups and privileges
+        under which that process runs.
+      </p>
+
+      <p>A simplified logon flow:</p>
+
+      <ol>
+        <li>Winlogon manages the interactive logon process.</li>
+        <li>Credentials are passed to the Local Security Authority Subsystem Service (LSASS) for authentication.</li>
+        <li>LSASS creates a primary token for the authenticated user.</li>
+        <li>Windows starts the user's shell, such as Explorer, with the appropriate token.</li>
+        <li>Applications launched from the shell normally inherit the relevant security context.</li>
+      </ol>
+
+      <h3>Impersonation Token</h3>
+
+      <p>
+        An impersonation token allows a thread to temporarily act
+        under another user's security context. This is particularly
+        relevant in client-server applications and Windows services.
+      </p>
+
+      <ul>
+        <li><strong>Anonymous:</strong> Access without identifying the client.</li>
+        <li><strong>Identification:</strong> The server can identify the client but does not access resources as that client.</li>
+        <li><strong>Impersonation:</strong> The server accesses local resources using the client's security context.</li>
+        <li><strong>Delegation:</strong> The server can act on behalf of the client when accessing remote resources, subject to the applicable security configuration.</li>
+      </ul>
+
+      <h2>Key takeaway</h2>
+
+      <p>
+        UAC and access tokens are closely related but serve different
+        roles. UAC governs the elevation experience, while access
+        tokens carry the security context that Windows uses when
+        evaluating access to resources.
+      </p>
+    </article>
+
+    <nav class="article-pagination">
+      <a href="plaidctf-rev.html">← Previous: PlaidCTF</a>
+      <a href="psychology-of-money.html">Next: The Psychology of Money →</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+  <div class="container footer-inner">
+    <span>© 2026 T.V.H (gamo)</span>
+    <a href="https://x.com/hvtran_" target="_blank" rel="noopener noreferrer">X ↗</a>
+  </div>
+</footer>
+</body>
+</html>
